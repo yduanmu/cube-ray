@@ -49,7 +49,7 @@ typedef struct Distance{
     double dist;
 } Distance;
 
-typedef struct PlaneEq{
+typedef struct PlaneEq{ //equation for plane
     double x_coeff, y_coeff, z_coeff;
     double equals;
 } PlaneEq;
@@ -59,8 +59,13 @@ PlaneEq new_planeEq(double x_coeff, double y_coeff, double z_coeff, double equal
     pe.x_coeff = x_coeff;
     pe.y_coeff = y_coeff;
     pe.z_coeff = z_coeff;
+    pe.equals = equals;
     return pe;
 }
+
+typedef struct LineEq{ //parametric equation for line
+    double constant, t_coeff;
+} LineEq;
 
 void make_point(char* str, int i){
     double x, y, z;
@@ -266,11 +271,49 @@ PlaneEq find_planeEq(Face face){
     return new_planeEq(n.x, n.y, n.z, equals);
 }
 
+//find intersection, if any, between the ray and the nearest face (given as a parametric equation)
+Point find_intersection(Point orig, Point dir, PlaneEq p_eq){
+    Point vec = new_point((orig.x - dir.x), (orig.y - dir.y), (orig.z - dir.z)); //not a point, but the direction vector for the line
+    double t;
+    LineEq x, y, z;
+    Point intersection;
+
+    //first, find the parametric equation of the line
+    x.constant = orig.x;
+    x.t_coeff = vec.x;
+    // printf("x_const: %f\tx_t_coeff: %f\n", x.constant, x.t_coeff);
+
+    y.constant = orig.y;
+    y.t_coeff = vec.y;
+
+    z.constant = orig.z;
+    z.t_coeff = vec.z;
+
+    //next, solve for t by replacing x, y, z in the plane equation with the parametric equations of each
+    t = (p_eq.equals - ((p_eq.x_coeff * x.constant) + (p_eq.y_coeff * y.constant) + (p_eq.z_coeff * z.constant))) /
+        ((p_eq.x_coeff * x.t_coeff) + (p_eq.y_coeff * y.t_coeff) + (p_eq.z_coeff * z.t_coeff));
+    // printf("numerator: %f\n", (p_eq.equals - ((p_eq.x_coeff * x.constant) + (p_eq.y_coeff * y.constant) + (p_eq.z_coeff * z.constant))));
+    // printf("t: %f\n", t);
+
+    //then, find the point of intersection by plugging in t into the parametric equations
+    intersection.x = x.constant + (x.t_coeff * t);
+    intersection.y = y.constant + (y.t_coeff * t);
+    intersection.z = z.constant + (z.t_coeff * t);
+
+    //last, check if the point of intersection is actually at a cube face: does the point satisfy the plane's equation?
+
+
+    return intersection;
+}
+
 int main(){
     char c_vert[14];
     char c_len[14];
     char r_orig[14];
     char r_dir[14];
+    Point intersection;
+    Face nearest;
+    PlaneEq p_eq;
     do{
         printf("\n------------------------------------------------------------------\n");
         printf("x y z coordinates of the FLD vertex (eg, 0 0 0 for origin): "); //the corner at which front, left, and down intersect
@@ -305,15 +348,16 @@ int main(){
         fgets(r_dir, 14, stdin);
         make_point(r_dir, 9); //DIR
 
-        Face nearest = nearest_face();
+        nearest = nearest_face();
+        p_eq = find_planeEq(nearest);
         if(nearest.side != 'N'){
-            printf("Nearest face: %c%d\n", nearest.side, nearest.sidenum);
+            printf("Nearest face: %c%d\t", nearest.side, nearest.sidenum);
+            // printf("p_equals: %f\n", p_eq.equals);
+            intersection = find_intersection(point_list[8], point_list[9], p_eq);
+            printf("Intersection: %f %f %f\n", intersection.x, intersection.y, intersection.z);
         } else {
             printf("No valid nearest face.\n");
         }
-
-        find_planeEq(nearest);
-        // PlaneEq eq = find_planeEq(nearest);
 
         printf("------------------------------------------------------------------\n");
     } while(true);
