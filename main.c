@@ -1,6 +1,6 @@
 /**
  * Melissa Duanmu mduanmu@u.rochester.edu
- * Last modified: 09 Feb 2025
+ * Last modified: 10 Feb 2025
  * cube-ray main.c
 gcc -o Main -std=c99 -Wall -Werror -fsanitize=address main.c
  */
@@ -95,6 +95,12 @@ int cmp(const void* a, const void* b){
     return ((arga->dist > argb->dist) - (arga->dist < argb->dist));
 }
 
+int cmpnum(const void* a, const void* b){
+    double arg1 = *(const int*)a;
+    double arg2 = *(const int*)b;
+    return (arg1 > arg2) - (arg1 < arg2);
+}
+
 double point_plane_dist(Point p, PlaneEq f){
     double a = f.x_coeff;
     double b = f.y_coeff;
@@ -113,9 +119,9 @@ PlaneEq find_planeEq(Face face){
     Point n; //similar to above, this is the normal vector
     double equals;
 
-    printf("P: %f %f %f\n", P.x, P.y, P.z);
-    printf("Q: %f %f %f\n", Q.x, Q.y, Q.z);
-    printf("R: %f %f %f\n", R.x, R.y, R.z);
+    // printf("P: %f %f %f\n", P.x, P.y, P.z);
+    // printf("Q: %f %f %f\n", Q.x, Q.y, Q.z);
+    // printf("R: %f %f %f\n", R.x, R.y, R.z);
 
     //first, find a & b
     a.x = Q.x - P.x;
@@ -126,20 +132,20 @@ PlaneEq find_planeEq(Face face){
     b.y = R.y - P.y;
     b.z = R.z - P.z;
 
-    printf("a: <%f %f %f>\n", a.x, a.y, a.z);
-    printf("b: <%f %f %f>\n", b.x, b.y, b.z);
+    // printf("a: <%f %f %f>\n", a.x, a.y, a.z);
+    // printf("b: <%f %f %f>\n", b.x, b.y, b.z);
 
     //next, find the determinants of the cross product a x b in order to find the normal vector
     n.x = (a.y * b.z) - (b.y * a.z);
     n.y = -1 * ((a.x * b.z) - (b.x * a.z));
     n.z = (a.x * b.y) - (b.x * a.y);
 
-    printf("normal vector: <%f %f %f>\n", n.x, n.y, n.z);
+    // printf("normal vector: <%f %f %f>\n", n.x, n.y, n.z);
 
     //last, find the "equals"
-    equals = 0.0 - ((n.x * P.x) - (n.y * P.y) + (n.z * P.z));
+    equals = 0.0 - ((n.x * P.x) + (n.y * P.y) + (n.z * P.z));
 
-    printf("Plane equation: %fx - %fy + %fz = %f\n", n.x, n.y, n.z, equals);
+    // printf("Plane equation: %fx - %fy + %fz = %f\n", n.x, n.y, n.z, equals);
 
     return new_planeEq(n.x, n.y, n.z, equals);
 }
@@ -176,7 +182,7 @@ Face nearest_face(void){ //nearest face to ray origin
     //if first and last are roughly equal, then orig is equidistant
     //so use dir instead of orig
     if(fabs(temp_list[0].dist - temp_list[7].dist) < 1e-6 || is_vertex(point_list[8])){
-        printf("orig equidistant or at vertex\n");
+        // printf("orig equidistant or at vertex\n");
 
         for(int j=0; j<8; j++){
             temp_list[j].dist = sqrt(pow((point_list[9].x - point_list[j].x), 2) + 
@@ -188,14 +194,14 @@ Face nearest_face(void){ //nearest face to ray origin
     }
 
     //adding the first four into vert_arr
-    printf("nearest vertex indices: ");
+    // printf("nearest vertex indices: ");
     for(int i=0; i<4; i++){
         // printf("%d: %f %f %f\n", temp_list[i].index, point_list[temp_list[i].index].x, point_list[temp_list[i].index].y, point_list[temp_list[i].index].z);
         // printf("\t%f\n", temp_list[i].dist);
         vert_arr[i] = temp_list[i].index;
-        printf("%d ", vert_arr[i]);
+        // printf("%d ", vert_arr[i]);
     }
-    printf("\n");
+    // printf("\n");
 
     //checks whether the plane is a face of the cube, as well as which face it is
     //FLD, FRD, BRD, BLD, FLU, FRU, BRU, BLU, ORIG, DIR, ERROR
@@ -367,23 +373,21 @@ Face nearest_face(void){ //nearest face to ray origin
     //     return nearest;
     // }
 
-    printf("Face: %c\n", nearest.side);
+    // printf("Face: %c\n", nearest.side);
     return nearest;
 }
 
 //find intersection, if any, between the ray and the nearest face (given as a parametric equation)
 Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
-    Point vec = new_point((orig.x - dir.x), (orig.y - dir.y), (orig.z - dir.z)); //not a point, but the direction vector for the line
+    Point vec = new_point((dir.x - orig.x), (dir.y - orig.y), (dir.z - orig.z)); //not a point, but the direction vector for the line
     double t;
     LineEq x, y, z;
     Point intersection;
     double denominator;
-    double largest_x_face;
-    double smallest_x_face;
-    double largest_y_face;
-    double smallest_y_face;
-    double largest_z_face;
-    double smallest_z_face;
+    double plane_x[3];
+    double plane_y[3];
+    double plane_z[3];
+    double d = -1 * p_eq.equals;
     Point a, b; //these are not points, but rather the vectors between orig->intersection and orig->dir respectively
 
     //first, find the parametric equation of the line
@@ -393,23 +397,23 @@ Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
 
     y.constant = orig.y;
     y.t_coeff = vec.y;
+    // printf("y_const: %f\ty_t_coeff: %f\n", y.constant, y.t_coeff);
 
     z.constant = orig.z;
     z.t_coeff = vec.z;
+    // printf("z_const: %f\tz_t_coeff: %f\n", z.constant, z.t_coeff);
 
     //next, solve for t by replacing x, y, z in the plane equation with the parametric equations of each
     denominator = (p_eq.x_coeff * x.t_coeff) + (p_eq.y_coeff * y.t_coeff) + (p_eq.z_coeff * z.t_coeff);
-    // printf("denominator: %f\n", denominator);
-    if(denominator != 0.0){
-        t = (p_eq.equals - ((p_eq.x_coeff * x.constant) + (p_eq.y_coeff * y.constant) + (p_eq.z_coeff * z.constant))) /
+    
+    if(fabs(denominator) >= 1e-6){
+        t = (d - ((p_eq.x_coeff * x.constant) + (p_eq.y_coeff * y.constant) + (p_eq.z_coeff * z.constant))) /
             denominator;
+        // printf("t: %f\n", t);
     } else {
         intersection.intersection = false;
         return intersection;
     }
-    
-    // printf("numerator: %f\n", (p_eq.equals - ((p_eq.x_coeff * x.constant) + (p_eq.y_coeff * y.constant) + (p_eq.z_coeff * z.constant))));
-    // printf("t: %f\n", t);
 
     //then, find the point of intersection by plugging in t into the parametric equations
     intersection.x = x.constant + (x.t_coeff * t);
@@ -417,54 +421,30 @@ Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
     intersection.z = z.constant + (z.t_coeff * t);
 
     //after, check if the point of intersection is actually at a cube face: does the point satisfy the plane's equation?
-    if(nearest.a.x >= nearest.b.x && nearest.a.x >= nearest.c.x){
-        largest_x_face = nearest.a.x;
-    } else if(nearest.b.x >= nearest.a.x && nearest.b.x >= nearest.c.x){
-        largest_x_face = nearest.b.x;
-    } else {
-        largest_x_face = nearest.c.x;
-    }
-    if(nearest.a.x <= nearest.b.x && nearest.a.x <= nearest.c.x){
-        smallest_x_face = nearest.a.x;
-    } else if(nearest.b.x <= nearest.a.x && nearest.b.x <= nearest.c.x){
-        smallest_x_face = nearest.b.x;
-    } else {
-        smallest_x_face = nearest.c.x;
-    }
+    plane_x[0] = nearest.a.x;
+    plane_x[1] = nearest.b.x;
+    plane_x[2] = nearest.c.x;
 
-    if(nearest.a.y >= nearest.b.y && nearest.a.y >= nearest.c.y){
-        largest_y_face = nearest.a.y;
-    } else if(nearest.b.y >= nearest.a.y && nearest.b.y >= nearest.c.y){
-        largest_y_face = nearest.b.y;
-    } else {
-        largest_y_face = nearest.c.y;
-    }
-    if(nearest.a.y <= nearest.b.y && nearest.a.y <= nearest.c.y){
-        smallest_y_face = nearest.a.y;
-    } else if(nearest.b.y <= nearest.a.y && nearest.b.y <= nearest.c.y){
-        smallest_y_face = nearest.b.y;
-    } else {
-        smallest_y_face = nearest.c.y;
-    }
-    
-    if(nearest.a.z >= nearest.b.z && nearest.a.z >= nearest.c.z){
-        largest_z_face = nearest.a.z;
-    } else if(nearest.b.z >= nearest.a.z && nearest.b.z >= nearest.c.z){
-        largest_z_face = nearest.b.z;
-    } else {
-        largest_z_face = nearest.c.z;
-    }
-    if(nearest.a.z <= nearest.b.z && nearest.a.z <= nearest.c.z){
-        smallest_z_face = nearest.a.z;
-    } else if(nearest.b.z <= nearest.a.z && nearest.b.z <= nearest.c.z){
-        smallest_z_face = nearest.b.z;
-    } else {
-        smallest_z_face = nearest.c.z;
-    }
+    plane_y[0] = nearest.a.y;
+    plane_y[1] = nearest.b.y;
+    plane_y[2] = nearest.c.y;
 
-    if(intersection.x <= largest_x_face && intersection.x >= smallest_x_face &&
-       intersection.y <= largest_y_face && intersection.y >= smallest_y_face &&
-       intersection.z <= largest_z_face && intersection.z >= smallest_z_face){
+    plane_z[0] = nearest.a.z;
+    plane_z[1] = nearest.b.z;
+    plane_z[2] = nearest.c.z;
+
+    qsort(plane_x, sizeof(plane_x)/sizeof(plane_x[0]), sizeof(double), cmpnum);
+    qsort(plane_y, sizeof(plane_y)/sizeof(plane_y[0]), sizeof(double), cmpnum);
+    qsort(plane_z, sizeof(plane_z)/sizeof(plane_z[0]), sizeof(double), cmpnum);
+
+    // printf("largest x: %f\tsmallest x: %f\n", plane_x[0], plane_x[2]);
+    // printf("largest y: %f\tsmallest y: %f\n", plane_y[0], plane_y[2]);
+    // printf("largest z: %f\tsmallest z: %f\n", plane_z[0], plane_z[2]);
+    // printf("possible intersection: %f %f %f\n", intersection.x, intersection.y, intersection.z);
+
+    if(intersection.x <= plane_x[2] && intersection.x >= plane_x[0] &&
+       intersection.y <= plane_y[2] && intersection.y >= plane_y[0] &&
+       intersection.z <= plane_z[2] && intersection.z >= plane_z[0]){
         intersection.intersection = true;
     } else {
         intersection.intersection = false;
@@ -490,6 +470,8 @@ Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
 int main(){
     char c_vert[14];
     char c_len[14];
+    // double len;
+    // char c_vert2[14];
     char r_orig[14];
     char r_dir[14];
     Point intersection;
@@ -508,6 +490,19 @@ int main(){
 
         printf("Length of cube: ");
         fgets(c_len, 14, stdin);
+
+        // printf("Coordinates of the BRD vertex: ");
+        // fgets(c_vert2, 14, stdin);
+        // make_point(c_vert, 1); //FRD
+
+        // len = point_list[0].x - point_list[2].x;
+        // point_list[2] = new_point(point_list[0].x + len, point_list[0].y, point_list[0].z - len); //BRD
+        // point_list[3] = new_point(point_list[0].x, point_list[0].y, point_list[0].z - len); //BLD
+        // point_list[4] = new_point(point_list[0].x, point_list[0].y + len, point_list[0].z); //FLU
+        // point_list[5] = new_point(point_list[0].x + len, point_list[0].y + len, point_list[0].z); //FRU
+        // point_list[6] = new_point(point_list[0].x + len, point_list[0].y + len, point_list[0].z - len); //BRU
+        // point_list[7] = new_point(point_list[0].x, point_list[0].y + len, point_list[0].z - len); //BLU
+
         point_list[1] = new_point(point_list[0].x + atof(c_len), point_list[0].y, point_list[0].z); //FRD
         point_list[2] = new_point(point_list[0].x + atof(c_len), point_list[0].y, point_list[0].z - atof(c_len)); //BRD
         point_list[3] = new_point(point_list[0].x, point_list[0].y, point_list[0].z - atof(c_len)); //BLD
@@ -541,7 +536,8 @@ int main(){
                 printf("No valid intersection.\n");
             }
         } else {
-            printf("No valid nearest face.\n");
+            printf("No valid intersection.\n");
+            // printf("No valid nearest face.\n");
         }
 
         printf("------------------------------------------------------------------\n");
