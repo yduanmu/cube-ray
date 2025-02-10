@@ -40,7 +40,9 @@ Arbitrary limitations (quick change):
 
 Other limitations (slow change):
 - The cube is only at one angle in 3D space. That is, standing flat
-  on the x-axis. I believe the calculation part doesn't care what
-  rotation the cube is at, but the cube initialization part would
-  have to be edited in order to solve this limitation. Tentatively,
-  I would say that the algorithm is complete, but not the program.
+  on the x-axis. I believe the calculation portion doesn't care what
+  rotation the cube is at (since the ray being able to be at any
+  arbitrary location and angle makes the cube's rotation redundant),
+  but the cube initialization part would have to be edited in order 
+  to solve this limitation. Tentatively, I would say that the 
+  algorithm is complete.
