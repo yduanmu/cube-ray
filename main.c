@@ -1,6 +1,6 @@
 /**
  * Melissa Duanmu mduanmu@u.rochester.edu
- * Last modified: 9 Feb 2025
+ * Last modified: 09 Feb 2025
  * cube-ray main.c
 gcc -o Main -std=c99 -Wall -Werror -fsanitize=address main.c
  */
@@ -82,7 +82,7 @@ void make_point(char* str, int i){
 }
 
 bool contains(int target, int* vert_arr){
-    for(int i = 0; i<3; i++){ //hard-coded to 3 since only 3 in vert_arr
+    for(int i = 0; i<4; i++){ //hard-coded to 4 since only 4 in vert_arr
         if(vert_arr[i] == target){
             return true;
         }
@@ -95,10 +95,72 @@ int cmp(const void* a, const void* b){
     return ((arga->dist > argb->dist) - (arga->dist < argb->dist));
 }
 
+double point_plane_dist(Point p, PlaneEq f){
+    double a = f.x_coeff;
+    double b = f.y_coeff;
+    double c = f.z_coeff;
+    double d = -1.0 * f.equals;
+    double denom = (sqrt(pow(a, 2) + pow(b, 2) + pow(c, 2)));
+
+    return (fabs((a * p.x) + (b * p.y) + (c * p.z) + d))/denom;
+}
+
+PlaneEq find_planeEq(Face face){
+    Point P = face.a;
+    Point Q = face.b;
+    Point R = face.c;
+    Point a, b; //these are not points, but rather the vectors between P->Q and P->R respectively
+    Point n; //similar to above, this is the normal vector
+    double equals;
+
+    printf("P: %f %f %f\n", P.x, P.y, P.z);
+    printf("Q: %f %f %f\n", Q.x, Q.y, Q.z);
+    printf("R: %f %f %f\n", R.x, R.y, R.z);
+
+    //first, find a & b
+    a.x = Q.x - P.x;
+    a.y = Q.y - P.y;
+    a.z = Q.z - P.z;
+
+    b.x = R.x - P.x;
+    b.y = R.y - P.y;
+    b.z = R.z - P.z;
+
+    printf("a: <%f %f %f>\n", a.x, a.y, a.z);
+    printf("b: <%f %f %f>\n", b.x, b.y, b.z);
+
+    //next, find the determinants of the cross product a x b in order to find the normal vector
+    n.x = (a.y * b.z) - (b.y * a.z);
+    n.y = -1 * ((a.x * b.z) - (b.x * a.z));
+    n.z = (a.x * b.y) - (b.x * a.y);
+
+    printf("normal vector: <%f %f %f>\n", n.x, n.y, n.z);
+
+    //last, find the "equals"
+    equals = 0.0 - ((n.x * P.x) - (n.y * P.y) + (n.z * P.z));
+
+    printf("Plane equation: %fx - %fy + %fz = %f\n", n.x, n.y, n.z, equals);
+
+    return new_planeEq(n.x, n.y, n.z, equals);
+}
+
+bool is_vertex(Point a){ //is this point a vertex
+    for(int i = 0; i<8; i++){
+        if(fabs(fabs(a.x) - fabs(point_list[i].x)) < 1e-6 &&
+           fabs(fabs(a.y) - fabs(point_list[i].y)) < 1e-6 &&
+           fabs(fabs(a.z) - fabs(point_list[i].z)) < 1e-6){
+            return true;
+        }
+    }
+    return false;
+}
+
+//FLD, FRD, BRD, BLD, FLU, FRU, BRU, BLU, ORIG, DIR, ERROR
+// 0    1    2    3    4    5    6    7    8     9    10
 Face nearest_face(void){ //nearest face to ray origin
-    Face nearest = new_face('N', 3, point_list[0], point_list[0], point_list[0]); //init with just the FLD, 'N'ot a side
     Distance temp_list[8];
-    int vert_arr[4] = {10, 10, 10, 10};
+    int vert_arr[] = {10, 10, 10, 10};
+    Face nearest = new_face('N', 3, point_list[8], point_list[8], point_list[8]);
 
     //first find distance from all vertices
     for(int j=0; j<8; j++){
@@ -111,122 +173,75 @@ Face nearest_face(void){ //nearest face to ray origin
     //sorting that list
     qsort(temp_list, 8, sizeof(Distance), cmp);
 
-    //adding the first three into vert_arr (3 points make a plane, useful later)
-    for(int i=0; i<3; i++){
+    //if first and last are roughly equal, then orig is equidistant
+    //so use dir instead of orig
+    if(fabs(temp_list[0].dist - temp_list[7].dist) < 1e-6 || is_vertex(point_list[8])){
+        printf("orig equidistant or at vertex\n");
+
+        for(int j=0; j<8; j++){
+            temp_list[j].dist = sqrt(pow((point_list[9].x - point_list[j].x), 2) + 
+                        pow((point_list[9].y - point_list[j].y), 2) + 
+                        pow((point_list[9].z - point_list[j].z), 2));
+            temp_list[j].index = j;
+        }
+        qsort(temp_list, 8, sizeof(Distance), cmp);
+    }
+
+    //adding the first four into vert_arr
+    printf("nearest vertex indices: ");
+    for(int i=0; i<4; i++){
         // printf("%d: %f %f %f\n", temp_list[i].index, point_list[temp_list[i].index].x, point_list[temp_list[i].index].y, point_list[temp_list[i].index].z);
         // printf("\t%f\n", temp_list[i].dist);
         vert_arr[i] = temp_list[i].index;
+        printf("%d ", vert_arr[i]);
     }
+    printf("\n");
 
     //checks whether the plane is a face of the cube, as well as which face it is
     //FLD, FRD, BRD, BLD, FLU, FRU, BRU, BLU, ORIG, DIR, ERROR
     // 0    1    2    3    4    5    6    7    8     9    10
-
-    //Best-case: O(N)     Worst-case: O(N^7)
-    if(contains(4, vert_arr)){ //FLU
-        nearest.a = point_list[4];
-        if(contains(0, vert_arr)){ //FLD
-            nearest.b = point_list[0];
+    if(contains(0, vert_arr)){ //FLD
+        nearest.a = point_list[0];
+        if(contains(4, vert_arr)){ //FLU
+            nearest.b = point_list[4];
             if(contains(7, vert_arr)){ //BLU
-                nearest.side = 'L';
-                nearest.sidenum = 1;
                 nearest.c = point_list[7];
-            } else if(contains(5, vert_arr)){ //FRU
+                nearest.side = 'L';
+            } else if (contains(5, vert_arr)){ //FRU
+                nearest.c = point_list[5];
                 nearest.side = 'F';
-                nearest.sidenum = 1;
-                nearest.c = point_list[5];
             } else {
                 return nearest;
             }
-        } else if(contains(7, vert_arr)){ //BLU
-            nearest.b = point_list[7];
-            if(contains(5, vert_arr)){ //FRU
-                nearest.side = 'U';
-                nearest.sidenum = 1;
-                nearest.c = point_list[5];
-            } else {
-                return nearest;
-            }
-        } else {
-            return nearest;
-        }
-    } else if(contains(6, vert_arr)) { //BRU
-        nearest.a = point_list[6];
-        if(contains(2, vert_arr)){ //BRD
+        } else if(contains(2, vert_arr)){ //BRD
             nearest.b = point_list[2];
+            if(contains(3, vert_arr)){ //BLD
+                nearest.c = point_list[3];
+                nearest.side = 'D';
+            } else {
+                return nearest;
+            }
+        } else {
+            return nearest;
+        }
+    } else if(contains(6, vert_arr)){ //BRU
+        nearest.a = point_list[6];
+        if(contains(4, vert_arr)){ //FLU
+            nearest.b = point_list[4];
             if(contains(7, vert_arr)){ //BLU
-                nearest.side = 'B';
-                nearest.sidenum = 1;
                 nearest.c = point_list[7];
-            } else if(contains(5, vert_arr)){ //FRU
-                nearest.side = 'R';
-                nearest.sidenum = 1;
-                nearest.c = point_list[5];
-            } else {
-                return nearest;
-            }
-        } else if(contains(7, vert_arr)){ //BLU
-            nearest.b = point_list[7];
-            if(contains(5, vert_arr)){ //FRU
                 nearest.side = 'U';
-                nearest.sidenum = 2;
-                nearest.c = point_list[5];
             } else {
                 return nearest;
             }
-        } else {
-            return nearest;
-        }
-    } else if(contains(3, vert_arr)){ //BLD
-        //FLD, FRD, BRD, BLD, FLU, FRU, BRU, BLU, ORIG, DIR, ERROR
-        // 0    1    2    3    4    5    6    7    8     9    10
-        nearest.a = point_list[3];
-        if(contains(7, vert_arr)){ //BLU
-            nearest.b = point_list[7];
-            if(contains(0, vert_arr)){ //FLD
-                nearest.side = 'L';
-                nearest.sidenum = 2;
-                nearest.c = point_list[0];
-            } else if(contains(2, vert_arr)){ //BRD
+        } else if(contains(2, vert_arr)){ //BRD
+            nearest.b = point_list[2];
+            if(contains(7, vert_arr)){ //BLD
+                nearest.c = point_list[7];
                 nearest.side = 'B';
-                nearest.sidenum = 2;
-                nearest.c = point_list[2];
-            } else {
-                return nearest;
-            }
-        } else if(contains(0, vert_arr)){ //FLD
-            nearest.b = point_list[0];
-            if(contains(2, vert_arr)){ //BRD
-                nearest.side = 'D';
-                nearest.sidenum = 1;
-                nearest.c = point_list[2];
-            } else {
-                return nearest;
-            }
-        } else {
-            return nearest;
-        }
-    } else if(contains(1, vert_arr)){ //FRD
-        nearest.a = point_list[1];
-        if(contains(5, vert_arr)){ //FRU
-            nearest.b = point_list[5];
-            if(contains(0, vert_arr)){ //FLD
-                nearest.side = 'F';
-                nearest.sidenum = 2;
-                nearest.c = point_list[0];
-            } else if(contains(2, vert_arr)){ //BRD
+            } else if (contains(1, vert_arr)){ //FRD
+                nearest.c = point_list[1];
                 nearest.side = 'R';
-                nearest.sidenum = 2;
-                nearest.c = point_list[2];
-            } else {
-                return nearest;
-            }
-        } else if(contains(0, vert_arr)){ //FLD
-            nearest.b = point_list[0];
-            if(contains(2, vert_arr)){ //BRD
-                nearest.side = 'D';
-                nearest.sidenum = 2;
-                nearest.c = point_list[2];
             } else {
                 return nearest;
             }
@@ -237,39 +252,123 @@ Face nearest_face(void){ //nearest face to ray origin
         return nearest;
     }
 
+    //Best-case: O(N)     Worst-case: O(N^7)
+    // if(contains(4, vert_arr)){ //FLU
+    //     nearest.a = point_list[4];
+    //     if(contains(0, vert_arr)){ //FLD
+    //         nearest.b = point_list[0];
+    //         if(contains(7, vert_arr)){ //BLU
+    //             nearest.side = 'L';
+    //             nearest.sidenum = 1;
+    //             nearest.c = point_list[7];
+    //         } else if(contains(5, vert_arr)){ //FRU
+    //             nearest.side = 'F';
+    //             nearest.sidenum = 1;
+    //             nearest.c = point_list[5];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else if(contains(7, vert_arr)){ //BLU
+    //         nearest.b = point_list[7];
+    //         if(contains(5, vert_arr)){ //FRU
+    //             nearest.side = 'U';
+    //             nearest.sidenum = 1;
+    //             nearest.c = point_list[5];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else {
+    //         return nearest;
+    //     }
+    // } else if(contains(6, vert_arr)) { //BRU
+    //     nearest.a = point_list[6];
+    //     if(contains(2, vert_arr)){ //BRD
+    //         nearest.b = point_list[2];
+    //         if(contains(7, vert_arr)){ //BLU
+    //             nearest.side = 'B';
+    //             nearest.sidenum = 1;
+    //             nearest.c = point_list[7];
+    //         } else if(contains(5, vert_arr)){ //FRU
+    //             nearest.side = 'R';
+    //             nearest.sidenum = 1;
+    //             nearest.c = point_list[5];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else if(contains(7, vert_arr)){ //BLU
+    //         nearest.b = point_list[7];
+    //         if(contains(5, vert_arr)){ //FRU
+    //             nearest.side = 'U';
+    //             nearest.sidenum = 2;
+    //             nearest.c = point_list[5];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else {
+    //         return nearest;
+    //     }
+    // } else if(contains(3, vert_arr)){ //BLD
+    //     //FLD, FRD, BRD, BLD, FLU, FRU, BRU, BLU, ORIG, DIR, ERROR
+    //     // 0    1    2    3    4    5    6    7    8     9    10
+    //     nearest.a = point_list[3];
+    //     if(contains(7, vert_arr)){ //BLU
+    //         nearest.b = point_list[7];
+    //         if(contains(0, vert_arr)){ //FLD
+    //             nearest.side = 'L';
+    //             nearest.sidenum = 2;
+    //             nearest.c = point_list[0];
+    //         } else if(contains(2, vert_arr)){ //BRD
+    //             nearest.side = 'B';
+    //             nearest.sidenum = 2;
+    //             nearest.c = point_list[2];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else if(contains(0, vert_arr)){ //FLD
+    //         nearest.b = point_list[0];
+    //         if(contains(2, vert_arr)){ //BRD
+    //             nearest.side = 'D';
+    //             nearest.sidenum = 1;
+    //             nearest.c = point_list[2];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else {
+    //         return nearest;
+    //     }
+    // } else if(contains(1, vert_arr)){ //FRD
+    //     nearest.a = point_list[1];
+    //     if(contains(5, vert_arr)){ //FRU
+    //         nearest.b = point_list[5];
+    //         if(contains(0, vert_arr)){ //FLD
+    //             nearest.side = 'F';
+    //             nearest.sidenum = 2;
+    //             nearest.c = point_list[0];
+    //         } else if(contains(2, vert_arr)){ //BRD
+    //             nearest.side = 'R';
+    //             nearest.sidenum = 2;
+    //             nearest.c = point_list[2];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else if(contains(0, vert_arr)){ //FLD
+    //         nearest.b = point_list[0];
+    //         if(contains(2, vert_arr)){ //BRD
+    //             nearest.side = 'D';
+    //             nearest.sidenum = 2;
+    //             nearest.c = point_list[2];
+    //         } else {
+    //             return nearest;
+    //         }
+    //     } else {
+    //         return nearest;
+    //     }
+    // } else {
+    //     return nearest;
+    // }
+
+    printf("Face: %c\n", nearest.side);
     return nearest;
-}
-
-PlaneEq find_planeEq(Face face){
-    Point P = face.a;
-    // printf("P: %f %f %f\n", P.x, P.y, P.z);
-    Point Q = face.b;
-    Point R = face.c;
-    Point a, b; //these are not points, but rather the vectors between P->Q and P->R respectively
-    Point n; //similar to above, this is the normal vector
-    double equals;
-
-    //first, find a & b
-    a.x = Q.x - P.x;
-    a.y = Q.y - P.y;
-    a.z = Q.z - P.z;
-
-    b.x = R.x - P.x;
-    b.y = R.y - P.y;
-    b.z = R.z - P.z;
-    // printf("vector b: %f %f %f\n", b.x, b.y, b.z);
-
-    //next, find the determinants of the cross product a x b in order to find the normal vector
-    n.x = (a.y * b.z) - (a.y * b.z);
-    n.y = -1 * ((a.x * b.z) - (b.x * a.z));
-    n.z = (a.x * b.y) - (b.x * a.y);
-
-    //last, find the "equals"
-    equals = 0.0 - ((n.x * P.x) - (n.y * P.y) + (n.z * P.z));
-    // printf("y coeff: %f\n", n.y);
-    // printf("equals: %f\n", equals);
-
-    return new_planeEq(n.x, n.y, n.z, equals);
 }
 
 //find intersection, if any, between the ray and the nearest face (given as a parametric equation)
@@ -285,6 +384,7 @@ Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
     double smallest_y_face;
     double largest_z_face;
     double smallest_z_face;
+    Point a, b; //these are not points, but rather the vectors between orig->intersection and orig->dir respectively
 
     //first, find the parametric equation of the line
     x.constant = orig.x;
@@ -316,7 +416,7 @@ Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
     intersection.y = y.constant + (y.t_coeff * t);
     intersection.z = z.constant + (z.t_coeff * t);
 
-    //last, check if the point of intersection is actually at a cube face: does the point satisfy the plane's equation?
+    //after, check if the point of intersection is actually at a cube face: does the point satisfy the plane's equation?
     if(nearest.a.x >= nearest.b.x && nearest.a.x >= nearest.c.x){
         largest_x_face = nearest.a.x;
     } else if(nearest.b.x >= nearest.a.x && nearest.b.x >= nearest.c.x){
@@ -365,6 +465,20 @@ Point find_intersection(Point orig, Point dir, PlaneEq p_eq, Face nearest){
     if(intersection.x <= largest_x_face && intersection.x >= smallest_x_face &&
        intersection.y <= largest_y_face && intersection.y >= smallest_y_face &&
        intersection.z <= largest_z_face && intersection.z >= smallest_z_face){
+        intersection.intersection = true;
+    } else {
+        intersection.intersection = false;
+    }
+
+    //lastly, what we found was the intersection of a *line*—— what we want is a ray instead.
+    //(orig->intersection) & b (orig->dir)
+    a.x = intersection.x - orig.x;
+    a.y = intersection.y - orig.y;
+    a.z = intersection.z - orig.z;
+    b.x = dir.x - orig.x;
+    b.y = dir.y - orig.y;
+    b.z = dir.z - orig.z;
+    if(((a.x * b.x) + (a.y * b.y) + (a.z * b.z)) >= 1e-6) { //dot product of orig->intersection and orig->dir
         intersection.intersection = true;
     } else {
         intersection.intersection = false;
@@ -422,7 +536,7 @@ int main(){
             // printf("p_equals: %f\n", p_eq.equals);
             intersection = find_intersection(point_list[8], point_list[9], p_eq, nearest);
             if(intersection.intersection){
-                printf("Intersection at %c face: %f %f %f\n", nearest.side, intersection.x, intersection.y, intersection.z);
+                printf("Closest intersection is at %c face: %f %f %f\n", nearest.side, intersection.x, intersection.y, intersection.z);
             } else {
                 printf("No valid intersection.\n");
             }
